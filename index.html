@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Telegram Web - Mobile Ready</title>
+    <!-- Tailwind CSS & FontAwesome -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        telegram: {
+                            blue: '#2481cc',
+                            darkBlue: '#17212b',
+                            darkPanel: '#0e1621',
+                            darkHover: '#202b36',
+                            darkBorder: '#18222d',
+                            lightBg: '#ffffff',
+                            lightSidebar: '#f4f4f5',
+                            bubbleIn: '#ffffff',
+                            bubbleOut: '#eeffde',
+                            bubbleInDark: '#182533',
+                            bubbleOutDark: '#2b5278'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: 3px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+        /* Mobile height fix */
+        body { height: 100vh; height: -webkit-fill-available; }
+    </style>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="bg-telegram-lightSidebar dark:bg-telegram-darkPanel text-gray-800 dark:text-gray-100 h-screen overflow-hidden flex flex-col font-sans" onclick="hideContextMenu()">
+
+    <!-- Auth / Login Modal -->
+    <div id="auth-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-telegram-darkBlue w-full max-w-md rounded-2xl shadow-2xl p-6 border border-gray-200 dark:border-telegram-darkBorder">
+            <div class="text-center mb-6">
+                <div class="w-20 h-20 bg-telegram-blue rounded-full flex items-center justify-center mx-auto mb-4 text-white text-3xl shadow-lg">
+                    <i class="fa-brands fa-telegram"></i>
+                </div>
+                <h2 class="text-2xl font-bold">Telegram Web Pro</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Ro'yxatdan o'tish uchun ma'lumotlarni kiriting</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Ismingiz</label>
+                    <input type="text" id="auth-name" placeholder="Masalan: Aziz" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none focus:ring-2 focus:ring-telegram-blue">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Username (@)</label>
+                    <input type="text" id="auth-username" placeholder="Masalan: aziz_dev" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none focus:ring-2 focus:ring-telegram-blue">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Profil rasmi havolasi (URL - ixtiyoriy)</label>
+                    <input type="text" id="auth-avatar" placeholder="https://example.com/photo.jpg" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none focus:ring-2 focus:ring-telegram-blue">
+                </div>
+                <button onclick="handleLogin()" class="w-full py-3 bg-telegram-blue hover:bg-blue-600 text-white font-semibold rounded-xl shadow-md transition duration-200">
+                    Kirish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Right-Click Context Menu -->
+    <div id="message-context-menu" class="fixed bg-white dark:bg-telegram-darkBlue border border-gray-200 dark:border-telegram-darkBorder rounded-xl shadow-2xl py-1.5 w-52 hidden z-50 text-xs">
+        <div onclick="ctxReply()" class="px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-telegram-darkHover cursor-pointer flex items-center space-x-3"><i class="fa-solid fa-reply w-5 text-telegram-blue text-sm"></i><span class="font-medium">Javob berish</span></div>
+        <div id="ctx-edit-option" onclick="ctxEdit()" class="px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-telegram-darkHover cursor-pointer flex items-center space-x-3"><i class="fa-solid fa-pen w-5 text-yellow-500 text-sm"></i><span class="font-medium">Tahrirlash</span></div>
+        <div onclick="ctxReaction()" class="px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-telegram-darkHover cursor-pointer flex items-center space-x-3"><i class="fa-solid fa-face-smile w-5 text-pink-500 text-sm"></i><span class="font-medium">Emotsiya bildirish</span></div>
+        <div onclick="ctxViews()" class="px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-telegram-darkHover cursor-pointer flex items-center space-x-3"><i class="fa-solid fa-eye w-5 text-green-500 text-sm"></i><span class="font-medium">Ko'rganlar soni</span></div>
+        <div onclick="ctxDelete()" class="px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-telegram-darkHover cursor-pointer flex items-center space-x-3 text-red-500 border-t border-gray-100 dark:border-telegram-darkBorder mt-1 pt-2"><i class="fa-solid fa-trash w-5 text-sm"></i><span class="font-medium">O'chirish</span></div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" class="flex-1 flex overflow-hidden hidden relative w-full h-full">
+        
+        <!-- Left Rail -->
+        <div class="w-14 md:w-16 bg-white dark:bg-telegram-darkBlue border-r border-gray-200 dark:border-telegram-darkBorder flex flex-col items-center py-3 justify-between shrink-0 z-20">
+            <div class="flex flex-col items-center space-y-4">
+                <button onclick="openSettings()" class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-gray-600 dark:text-gray-300 transition" title="Sozlamalar va Profil">
+                    <i class="fa-solid fa-bars text-lg"></i>
+                </button>
+            </div>
+            <div class="flex flex-col items-center space-y-3">
+                <button onclick="toggleDarkMode()" class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-gray-600 dark:text-gray-300 transition" title="Rejimni o'zgartirish">
+                    <i id="theme-icon" class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar (Chatlar ro'yxati) -->
+        <div id="sidebar" class="w-full md:w-80 lg:w-96 flex flex-col border-r border-gray-200 dark:border-telegram-darkBorder bg-white dark:bg-telegram-darkBlue shrink-0 z-10">
+            <div class="p-3 space-y-2 border-b border-gray-200 dark:border-telegram-darkBorder">
+                <div class="flex items-center space-x-2">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-search absolute left-3.5 top-3.5 text-gray-400 text-sm"></i>
+                        <input type="text" id="search-input" oninput="handleSearch(this.value)" placeholder="Qidiruv..." class="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-telegram-darkPanel border-none rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-telegram-blue">
+                    </div>
+                    <button onclick="openCreateModal()" class="w-9 h-9 bg-telegram-blue text-white rounded-xl hover:bg-blue-600 flex items-center justify-center shadow transition shrink-0" title="Yangi chat / kanal">
+                        <i class="fa-solid fa-pen-to-square text-sm"></i>
+                    </button>
+                </div>
+                <div class="flex space-x-1 overflow-x-auto text-xs font-semibold py-1 custom-scrollbar">
+                    <button onclick="filterTab('all')" id="tab-all" class="px-3 py-1.5 rounded-lg bg-telegram-blue text-white transition shrink-0">Barchasi</button>
+                    <button onclick="filterTab('chat')" id="tab-chat" class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-telegram-darkPanel text-gray-500 hover:text-gray-800 dark:hover:text-white transition shrink-0">Chatlar</button>
+                    <button onclick="filterTab('channel')" id="tab-channel" class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-telegram-darkPanel text-gray-500 hover:text-gray-800 dark:hover:text-white transition shrink-0">Kanallar</button>
+                </div>
+            </div>
+            <div id="chat-list" class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-gray-100 dark:divide-telegram-darkBorder"></div>
+        </div>
+
+        <!-- Chat Area (Ekran chatini ko'rsatish) -->
+        <div id="chat-area" class="absolute md:relative inset-0 md:inset-auto flex-1 flex flex-col bg-gray-50 dark:bg-telegram-darkPanel z-30 md:z-auto hidden md:flex transition-all duration-200">
+            <div class="h-16 px-4 bg-white dark:bg-telegram-darkBlue border-b border-gray-200 dark:border-telegram-darkBorder flex items-center justify-between z-10 shadow-sm">
+                <div class="flex items-center space-x-3 cursor-pointer overflow-hidden" onclick="openChannelInfo()">
+                    <button onclick="closeChatMobile(); event.stopPropagation();" class="md:hidden text-gray-600 dark:text-gray-300 hover:text-telegram-blue pr-1">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
+                    </button>
+                    <div id="active-chat-avatar" class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold shadow bg-cover bg-center shrink-0">?</div>
+                    <div class="truncate">
+                        <h3 id="active-chat-name" class="font-semibold text-sm leading-tight truncate">Chat tanlanmagan</h3>
+                        <span id="active-chat-status" class="text-xs text-gray-400 block truncate">oxirgi faollik...</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-1 shrink-0">
+                    <button id="video-chat-top-btn" onclick="openVideoChatModal()" class="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-telegram-blue transition hidden">
+                        <i class="fa-solid fa-video text-base"></i>
+                    </button>
+                    <button id="channel-info-btn" onclick="openChannelInfo()" class="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-gray-500 dark:text-gray-300 transition hidden">
+                        <i class="fa-solid fa-circle-info text-base"></i>
+                    </button>
+                    <button onclick="openWallpaperModal()" class="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-gray-500 dark:text-gray-300 transition">
+                        <i class="fa-solid fa-image text-base"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-cover bg-center transition-all duration-300">
+                <div class="text-center p-8 text-gray-400 dark:text-gray-500 mt-20">
+                    <i class="fa-regular fa-comments text-5xl mb-3"></i>
+                    <p class="text-sm">Muloqotni boshlash uchun chat yoki kanalni tanlang.</p>
+                </div>
+            </div>
+
+            <!-- Action Banner -->
+            <div id="action-banner" class="px-4 py-2 bg-gray-100 dark:bg-telegram-darkBlue border-t border-gray-200 dark:border-telegram-darkBorder flex items-center justify-between text-xs hidden">
+                <div class="flex items-center space-x-2 overflow-hidden">
+                    <i id="action-banner-icon" class="fa-solid fa-reply text-telegram-blue"></i>
+                    <div class="truncate">
+                        <span id="action-banner-title" class="font-bold text-telegram-blue">Javob berish</span>
+                        <p id="action-banner-text" class="text-gray-500 dark:text-gray-400 truncate"></p>
+                    </div>
+                </div>
+                <button onclick="cancelAction()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white"><i class="fa-solid fa-xmark text-sm"></i></button>
+            </div>
+
+            <!-- Message Input Form -->
+            <div id="message-input-bar" class="p-2.5 bg-white dark:bg-telegram-darkBlue border-t border-gray-200 dark:border-telegram-darkBorder flex items-center space-x-2 hidden">
+                <div class="relative">
+                    <button onclick="toggleEmojiPicker()" class="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-gray-500 dark:text-gray-300 transition">
+                        <i class="fa-regular fa-face-smile text-lg"></i>
+                    </button>
+                    <!-- Expanded Emoji Picker -->
+                    <div id="emoji-picker" class="absolute bottom-12 left-0 bg-white dark:bg-telegram-darkPanel border border-gray-200 dark:border-telegram-darkBorder rounded-2xl shadow-xl p-3 grid grid-cols-6 gap-2 hidden z-30 w-60">
+                        <span onclick="addEmoji('😊')" class="cursor-pointer text-xl text-center hover:scale-125 transition">😊</span>
+                        <span onclick="addEmoji('😂')" class="cursor-pointer text-xl text-center hover:scale-125 transition">😂</span>
+                        <span onclick="addEmoji('❤️️')" class="cursor-pointer text-xl text-center hover:scale-125 transition">❤️</span>
+                        <span onclick="addEmoji('🔥')" class="cursor-pointer text-xl text-center hover:scale-125 transition">🔥</span>
+                        <span onclick="addEmoji('👍')" class="cursor-pointer text-xl text-center hover:scale-125 transition">👍</span>
+                        <span onclick="addEmoji('✨')" class="cursor-pointer text-xl text-center hover:scale-125 transition">✨</span>
+                        <span onclick="addEmoji('😎')" class="cursor-pointer text-xl text-center hover:scale-125 transition">😎</span>
+                        <span onclick="addEmoji('🎉')" class="cursor-pointer text-xl text-center hover:scale-125 transition">🎉</span>
+                        <span onclick="addEmoji('🚀')" class="cursor-pointer text-xl text-center hover:scale-125 transition">🚀</span>
+                        <span onclick="addEmoji('💡')" class="cursor-pointer text-xl text-center hover:scale-125 transition">💡</span>
+                        <span onclick="addEmoji('💯')" class="cursor-pointer text-xl text-center hover:scale-125 transition">💯</span>
+                        <span onclick="addEmoji('⭐')" class="cursor-pointer text-xl text-center hover:scale-125 transition">⭐</span>
+                    </div>
+                </div>
+
+                <button onclick="sendAttachment()" class="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-telegram-darkHover flex items-center justify-center text-gray-500 dark:text-gray-300 transition" title="Fayl yuborish">
+                    <i class="fa-solid fa-paperclip text-base"></i>
+                </button>
+
+                <input type="text" id="message-input" onkeypress="handleKeyPress(event)" placeholder="Xabar yozing..." class="flex-1 bg-gray-100 dark:bg-telegram-darkPanel border-none px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-telegram-blue">
+                
+                <button onclick="sendMessage()" class="w-10 h-10 bg-telegram-blue hover:bg-blue-600 text-white rounded-full flex items-center justify-center shadow transition shrink-0">
+                    <i id="send-btn-icon" class="fa-solid fa-paper-plane text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals (Video chat, Channel info, Settings, Wallpapers, etc.) -->
+    <div id="video-chat-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 hidden">
+        <div class="w-full max-w-4xl bg-telegram-darkBlue rounded-2xl shadow-2xl overflow-hidden border border-telegram-darkBorder flex flex-col h-[80vh]">
+            <div class="px-6 py-4 bg-telegram-darkPanel border-b border-telegram-darkBorder flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+                    <h3 class="font-bold text-lg text-white">Video Chat & Ekran ulash</h3>
+                </div>
+                <button onclick="closeVideoChatModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="flex-1 bg-black relative flex items-center justify-center overflow-hidden p-2">
+                <video id="local-video" autoplay playsinline muted class="w-full h-full object-contain rounded-xl bg-gray-900"></video>
+                <div id="video-placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-500 space-y-2">
+                    <i class="fa-solid fa-video-slash text-5xl"></i>
+                    <p class="text-sm">Kamera yoki ekran ulash o'chirilgan</p>
+                </div>
+            </div>
+            <div class="p-4 bg-telegram-darkPanel border-t border-telegram-darkBorder flex items-center justify-center space-x-4">
+                <button onclick="toggleCamera()" id="cam-btn" class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 text-white flex items-center justify-center transition shadow">
+                    <i class="fa-solid fa-video text-lg"></i>
+                </button>
+                <button onclick="shareScreen()" id="screen-btn" class="w-12 h-12 rounded-full bg-telegram-blue hover:bg-blue-600 text-white flex items-center justify-center transition shadow">
+                    <i class="fa-solid fa-desktop text-lg"></i>
+                </button>
+                <button onclick="closeVideoChatModal()" class="w-14 h-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition shadow">
+                    <i class="fa-solid fa-phone-slash text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div id="create-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-telegram-darkBlue w-full max-w-md rounded-2xl shadow-2xl p-6 border border-gray-200 dark:border-telegram-darkBorder">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold">Yangi chat / kanal</h3>
+                <button onclick="closeCreateModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Turi</label>
+                    <select id="create-type" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none">
+                        <option value="chat">Shaxsiy Chat</option>
+                        <option value="channel">Kanal</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Nomi</label>
+                    <input type="text" id="create-title" placeholder="Masalan: Dasturlash" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Rasm (URL)</label>
+                    <input type="text" id="create-avatar" placeholder="https://example.com/image.jpg" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none">
+                </div>
+                <button onclick="saveNewItem()" class="w-full py-3 bg-telegram-blue hover:bg-blue-600 text-white font-semibold rounded-xl shadow-md transition">Yaratish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Channel Info Modal -->
+    <div id="channel-info-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-telegram-darkBlue w-full max-w-md rounded-2xl shadow-2xl p-6 border border-gray-200 dark:border-telegram-darkBorder max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold">Ma'lumotlar va Ishtirokchilar</h3>
+                <button onclick="closeChannelInfo()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div class="text-center">
+                    <div id="info-avatar-box" class="w-20 h-20 bg-purple-600 text-white rounded-full flex items-center justify-center text-3xl mx-auto shadow-md mb-2 bg-cover bg-center">
+                        <i class="fa-solid fa-bullhorn"></i>
+                    </div>
+                    <div class="flex items-center justify-center space-x-2 mt-2">
+                        <input type="text" id="info-edit-title" class="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder text-center font-bold text-base focus:outline-none">
+                        <button onclick="renameChatOrChannel()" class="px-3 py-1.5 bg-telegram-blue text-white rounded-xl text-xs font-semibold shadow">Saqlash</button>
+                    </div>
+                    <span id="info-member-count" class="text-xs text-gray-400 mt-1 block">0 ishtirokchi</span>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Avatar o'zgartirish (URL)</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="info-edit-avatar" placeholder="https://..." class="flex-1 px-3 py-2 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder text-sm focus:outline-none">
+                        <button onclick="updateChatAvatar()" class="px-3 py-2 bg-telegram-blue text-white font-semibold rounded-xl text-xs">Saqlash</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Ishtirokchi qo'shish</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="new-member-name" placeholder="Ism..." class="flex-1 px-4 py-2 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder text-sm focus:outline-none">
+                        <button onclick="addMember()" class="px-4 py-2 bg-telegram-blue text-white font-semibold rounded-xl text-sm">Qo'shish</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Ishtirokchilar</label>
+                    <div id="members-list" class="max-h-36 overflow-y-auto custom-scrollbar space-y-2 bg-gray-50 dark:bg-telegram-darkPanel p-3 rounded-xl border border-gray-200 dark:border-telegram-darkBorder text-sm"></div>
+                </div>
+                <button onclick="deleteChatOrChannel()" class="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-semibold rounded-xl transition text-sm">Chatni o'chirish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-telegram-darkBlue w-full max-w-md rounded-2xl shadow-2xl p-6 border border-gray-200 dark:border-telegram-darkBorder">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold">Profil Sozlamalari</h3>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div class="text-center mb-4">
+                    <div id="settings-avatar-box" class="w-20 h-20 bg-telegram-blue rounded-full text-white flex items-center justify-center font-bold text-3xl mx-auto shadow-md mb-2 bg-cover bg-center">A</div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Ismingiz</label>
+                    <input type="text" id="settings-name" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Username (@)</label>
+                    <input type="text" id="settings-username" class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Profil rasmi URL</label>
+                    <input type="text" id="settings-avatar" placeholder="https://..." class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-telegram-darkPanel border border-gray-300 dark:border-telegram-darkBorder focus:outline-none">
+                </div>
+                <button onclick="saveSettings()" class="w-full py-3 bg-telegram-blue hover:bg-blue-600 text-white font-semibold rounded-xl shadow-md transition">Saqlash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wallpapers Modal -->
+    <div id="wallpaper-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-telegram-darkBlue w-full max-w-lg rounded-2xl shadow-2xl p-6 border border-gray-200 dark:border-telegram-darkBorder">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold">Fon rasmini tanlash</h3>
+                <button onclick="closeWallpaperModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-6 max-h-72 overflow-y-auto custom-scrollbar p-1">
+                <div onclick="setWallpaper('default')" class="cursor-pointer h-24 rounded-xl border border-gray-200 dark:border-telegram-darkBorder bg-gray-100 dark:bg-telegram-darkPanel flex flex-col items-center justify-center hover:border-telegram-blue transition">
+                    <i class="fa-solid fa-ban text-lg mb-1 text-gray-400"></i>
+                    <span class="text-[11px] font-medium">Odatiy</span>
+                </div>
+                <div onclick="setWallpaper('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800')" class="cursor-pointer h-24 rounded-xl bg-cover bg-center border-2 border-transparent hover:border-telegram-blue transition shadow" style="background-image: url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800')"></div>
+                <div onclick="setWallpaper('https://images.unsplash.com/photo-1557683316-973673baf926?w=800')" class="cursor-pointer h-24 rounded-xl bg-cover bg-center border-2 border-transparent hover:border-telegram-blue transition shadow" style="background-image: url('https://images.unsplash.com/photo-1557683316-973673baf926?w=800')"></div>
+                <div onclick="setWallpaper('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800')" class="cursor-pointer h-24 rounded-xl bg-cover bg-center border-2 border-transparent hover:border-telegram-blue transition shadow" style="background-image: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800')"></div>
+                <div onclick="setWallpaper('https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800')" class="cursor-pointer h-24 rounded-xl bg-cover bg-center border-2 border-transparent hover:border-telegram-blue transition shadow" style="background-image: url('https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800')"></div>
+            </div>
+            <button onclick="closeWallpaperModal()" class="w-full py-3 bg-gray-200 dark:bg-telegram-darkPanel text-gray-700 dark:text-gray-300 font-semibold rounded-xl transition">Yopish</button>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // 1. Socket.io ulanishi
+        const socket = io('http://localhost:5000');
+
+        window.currentUser = JSON.parse(localStorage.getItem('tg_user')) || null;
+        window.activeChatId = null;
+        window.activeChatType = null;
+        window.activeChatTitle = null;
+        window.activeChatAvatarUrl = null;
+        window.currentFilter = 'all';
+        
+        window.replyingTo = null;
+        window.editingMsgId = null;
+        window.selectedCtxMsgId = null;
+        window.localStream = null;
+
+        // 2. Real vaqtda yangi xabarlarni qabul qilish
+        socket.on('receive_message', (data) => {
+            if (!window.activeChatId || data.chatId !== window.activeChatId) return;
+
+            let savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            const exists = savedMsgs.some(m => m.id === data.id);
+            if (!exists) {
+                savedMsgs.push(data);
+                localStorage.setItem('msgs_' + window.activeChatId, JSON.stringify(savedMsgs));
+                loadMessages(window.activeChatId);
+            }
+        });
+
+        window.onload = function() {
+            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                document.getElementById('theme-icon').className = 'fa-solid fa-sun';
+            }
+            if (window.currentUser) {
+                document.getElementById('auth-modal').classList.add('hidden');
+                document.getElementById('app-container').classList.remove('hidden');
+                initApp();
+            }
+        };
+
+        window.handleLogin = function() {
+            const name = document.getElementById('auth-name').value.trim();
+            const username = document.getElementById('auth-username').value.trim();
+            const avatar = document.getElementById('auth-avatar').value.trim();
+
+            if (!name) { alert('Iltimos, ismingizni kiriting!'); return; }
+            if (!username) { alert('Iltimos, username kiriting!'); return; }
+
+            const cleanUsername = username.startsWith('@') ? username : '@' + username;
+
+            window.currentUser = { 
+                id: 'user_' + Date.now(), 
+                name, 
+                username: cleanUsername, 
+                avatar, 
+                wallpaper: 'default' 
+            };
+            localStorage.setItem('tg_user', JSON.stringify(window.currentUser));
+            document.getElementById('auth-modal').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            initApp();
+        };
+
+        function initApp() {
+            updateUserUI();
+            if (window.currentUser.wallpaper && window.currentUser.wallpaper !== 'default') {
+                document.getElementById('messages-container').style.backgroundImage = `url('${window.currentUser.wallpaper}')`;
+            }
+            
+            let myChats = JSON.parse(localStorage.getItem('my_chats_' + window.currentUser.id)) || [];
+            if (!myChats.some(c => c.id === 'video_chat_room')) {
+                myChats.unshift({
+                    id: 'video_chat_room',
+                    type: 'video_room',
+                    title: 'Video Chat (Ekran ulash)',
+                    avatar: ''
+                });
+                localStorage.setItem('my_chats_' + window.currentUser.id, JSON.stringify(myChats));
+            }
+
+            loadChats();
+        }
+
+        function updateUserUI() {
+            const avatarBox = document.getElementById('settings-avatar-box');
+            if (window.currentUser.avatar) {
+                avatarBox.style.backgroundImage = `url('${window.currentUser.avatar}')`;
+                avatarBox.innerText = '';
+            } else {
+                avatarBox.style.backgroundImage = 'none';
+                avatarBox.innerText = window.currentUser.name.charAt(0).toUpperCase();
+            }
+        }
+
+        window.toggleDarkMode = function() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                icon.className = 'fa-solid fa-moon';
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                icon.className = 'fa-solid fa-sun';
+            }
+        };
+
+        window.openSettings = function() {
+            document.getElementById('settings-name').value = window.currentUser.name;
+            document.getElementById('settings-username').value = window.currentUser.username || '';
+            document.getElementById('settings-avatar').value = window.currentUser.avatar || '';
+            updateUserUI();
+            document.getElementById('settings-modal').classList.remove('hidden');
+        };
+        window.closeSettings = function() { document.getElementById('settings-modal').classList.add('hidden'); };
+        
+        window.saveSettings = function() {
+            const name = document.getElementById('settings-name').value.trim();
+            const username = document.getElementById('settings-username').value.trim();
+            const avatar = document.getElementById('settings-avatar').value.trim();
+
+            if (!name) return;
+            window.currentUser.name = name;
+            window.currentUser.username = username.startsWith('@') ? username : '@' + username;
+            window.currentUser.avatar = avatar;
+
+            localStorage.setItem('tg_user', JSON.stringify(window.currentUser));
+            updateUserUI();
+            closeSettings();
+            if(window.activeChatId) loadMessages(window.activeChatId);
+        };
+
+        window.openCreateModal = function() { document.getElementById('create-modal').classList.remove('hidden'); };
+        window.closeCreateModal = function() { document.getElementById('create-modal').classList.add('hidden'); };
+
+        window.filterTab = function(type) {
+            window.currentFilter = type;
+            ['all', 'chat', 'channel'].forEach(t => {
+                const btn = document.getElementById('tab-' + t);
+                if(btn) {
+                    btn.className = t === type ? 'px-3 py-1.5 rounded-lg bg-telegram-blue text-white transition shrink-0' : 'px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-telegram-darkPanel text-gray-500 hover:text-gray-800 dark:hover:text-white transition shrink-0';
+                }
+            });
+            loadChats(document.getElementById('search-input').value);
+        };
+
+        window.saveNewItem = function() {
+            const type = document.getElementById('create-type').value;
+            const title = document.getElementById('create-title').value.trim();
+            const avatar = document.getElementById('create-avatar').value.trim();
+            if (!title) { alert('Nomini kiriting!'); return; }
+
+            const chatId = 'chat_' + Date.now();
+            const newItem = { id: chatId, type, title, avatar };
+
+            let myChats = JSON.parse(localStorage.getItem('my_chats_' + window.currentUser.id)) || [];
+            myChats.unshift(newItem);
+            localStorage.setItem('my_chats_' + window.currentUser.id, JSON.stringify(myChats));
+
+            localStorage.setItem('members_obj_' + chatId, JSON.stringify([{ name: window.currentUser.name, username: window.currentUser.username, avatar: window.currentUser.avatar, isAdmin: true, isPremium: false }]));
+
+            document.getElementById('create-title').value = '';
+            document.getElementById('create-avatar').value = '';
+            closeCreateModal();
+            loadChats();
+            startChat(chatId, title, type, avatar);
+        };
+
+        window.loadChats = function(query = '') {
+            const chatList = document.getElementById('chat-list');
+            let myChats = JSON.parse(localStorage.getItem('my_chats_' + window.currentUser.id)) || [];
+
+            const lowerQuery = query.toLowerCase().trim();
+
+            let extraList = [];
+            if (lowerQuery && (
+                window.currentUser.username.toLowerCase().includes(lowerQuery) || 
+                window.currentUser.name.toLowerCase().includes(lowerQuery)
+            )) {
+                extraList.push({
+                    id: 'saved_messages_room',
+                    type: 'chat',
+                    title: `${window.currentUser.name} (Saqlangan xabarlar)`,
+                    avatar: window.currentUser.avatar
+                });
+            }
+
+            const combined = [...extraList, ...myChats];
+
+            const filtered = combined.filter(c => {
+                const matchesQuery = c.title.toLowerCase().includes(lowerQuery) || (c.username && c.username.toLowerCase().includes(lowerQuery));
+                const matchesTab = window.currentFilter === 'all' || c.type === window.currentFilter || c.type === 'video_room';
+                return matchesQuery && matchesTab;
+            });
+
+            if (filtered.length === 0) {
+                chatList.innerHTML = `<div class="text-center p-8 text-gray-400 dark:text-gray-500 mt-12"><i class="fa-regular fa-comment-dots text-4xl mb-3"></i><p class="text-sm">Chatlar topilmadi.</p></div>`;
+                return;
+            }
+
+            chatList.innerHTML = filtered.map(c => {
+                let iconClass = 'fa-user';
+                let bgClass = 'bg-telegram-blue';
+                if (c.type === 'channel') { iconClass = 'fa-bullhorn'; bgClass = 'bg-purple-600'; }
+                else if (c.type === 'video_room') { iconClass = 'fa-video'; bgClass = 'bg-emerald-600'; }
+
+                return `
+                    <div onclick="startChat('${c.id}', '${c.title.replace(/'/g, "\\'")}', '${c.type}', '${c.avatar || ''}')" class="p-3 flex items-center space-x-3 hover:bg-gray-100 dark:hover:bg-telegram-darkHover cursor-pointer transition">
+                        <div class="w-12 h-12 rounded-full ${c.avatar ? '' : bgClass} text-white flex items-center justify-center font-bold text-lg shadow bg-cover bg-center shrink-0" style="${c.avatar ? `background-image: url('${c.avatar}')` : ''}">
+                            ${!c.avatar ? `<i class="fa-solid ${iconClass}"></i>` : ''}
+                        </div>
+                        <div class="flex-1 truncate">
+                            <div class="flex justify-between items-center">
+                                <h4 class="font-semibold text-sm truncate">${c.title}</h4>
+                                <span class="text-[10px] text-gray-400">${c.type === 'channel' ? 'Kanal' : (c.type === 'video_room' ? 'Maxsus' : 'Chat')}</span>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${c.id === 'saved_messages_room' ? window.currentUser.username : (c.type === 'video_room' ? 'Video chat va ekran ulash uchun' : 'Suhbatni ochish...')}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.startChat = function(chatId, chatName, type, avatar) {
+            window.activeChatId = chatId;
+            window.activeChatType = type;
+            window.activeChatTitle = chatName;
+            window.activeChatAvatarUrl = avatar;
+
+            const chatArea = document.getElementById('chat-area');
+            chatArea.classList.remove('hidden');
+
+            document.getElementById('active-chat-name').innerText = chatName;
+            
+            const avatarBox = document.getElementById('active-chat-avatar');
+            const videoTopBtn = document.getElementById('video-chat-top-btn');
+            const infoBtn = document.getElementById('channel-info-btn');
+            const inputBar = document.getElementById('message-input-bar');
+
+            if (type === 'video_room') {
+                videoTopBtn.classList.remove('hidden');
+                infoBtn.classList.add('hidden');
+                inputBar.classList.add('hidden');
+                avatarBox.style.backgroundImage = 'none';
+                avatarBox.innerHTML = `<i class="fa-solid fa-video"></i>`;
+                document.getElementById('active-chat-status').innerText = 'Online video xona';
+            } else {
+                videoTopBtn.classList.add('hidden');
+                infoBtn.classList.remove('hidden');
+                inputBar.classList.remove('hidden');
+
+                if (avatar) {
+                    avatarBox.style.backgroundImage = `url('${avatar}')`;
+                    avatarBox.innerHTML = '';
+                } else {
+                    avatarBox.style.backgroundImage = 'none';
+                    avatarBox.innerHTML = `<i class="fa-solid ${type === 'channel' ? 'fa-bullhorn' : 'fa-user'}"></i>`;
+                }
+                const members = getChatMembers(chatId);
+                document.getElementById('active-chat-status').innerText = chatId === 'saved_messages_room' ? window.currentUser.username : `${members.length} ta ishtirokchi`;
+            }
+
+            cancelAction();
+            loadMessages(chatId);
+        };
+
+        // Video Chat & Screen Sharing Functions
+        window.openVideoChatModal = function() {
+            document.getElementById('video-chat-modal').classList.remove('hidden');
+        };
+
+        window.closeVideoChatModal = function() {
+            if (window.localStream) {
+                window.localStream.getTracks().forEach(track => track.stop());
+                window.localStream = null;
+            }
+            document.getElementById('local-video').srcObject = null;
+            document.getElementById('video-placeholder').classList.remove('hidden');
+            document.getElementById('video-chat-modal').classList.add('hidden');
+        };
+
+        window.toggleCamera = async function() {
+            try {
+                if (window.localStream) {
+                    window.localStream.getTracks().forEach(track => track.stop());
+                    window.localStream = null;
+                    document.getElementById('local-video').srcObject = null;
+                    document.getElementById('video-placeholder').classList.remove('hidden');
+                } else {
+                    window.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    const videoEl = document.getElementById('local-video');
+                    videoEl.srcObject = window.localStream;
+                    document.getElementById('video-placeholder').classList.add('hidden');
+                }
+            } catch (err) {
+                alert("Kameraga ruxsat berilmadi yoki xatolik yuz berdi: " + err.message);
+            }
+        };
+
+        window.shareScreen = async function() {
+            try {
+                if (window.localStream) {
+                    window.localStream.getTracks().forEach(track => track.stop());
+                }
+                window.localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                const videoEl = document.getElementById('local-video');
+                videoEl.srcObject = window.localStream;
+                document.getElementById('video-placeholder').classList.add('hidden');
+
+                window.localStream.getVideoTracks()[0].onended = () => {
+                    window.localStream = null;
+                    videoEl.srcObject = null;
+                    document.getElementById('video-placeholder').classList.remove('hidden');
+                };
+            } catch (err) {
+                alert("Ekranni ulash imkoni bo'lmadi: " + err.message);
+            }
+        };
+
+        function getChatMembers(chatId) {
+            let members = JSON.parse(localStorage.getItem('members_obj_' + chatId));
+            if (!members) {
+                members = [{ name: window.currentUser.name, username: window.currentUser.username, avatar: window.currentUser.avatar, isAdmin: true, isPremium: false }];
+                localStorage.setItem('members_obj_' + chatId, JSON.stringify(members));
+            } else {
+                members = members.map(m => {
+                    if (m.isAdmin) {
+                        m.name = window.currentUser.name;
+                        m.username = window.currentUser.username;
+                        m.avatar = window.currentUser.avatar;
+                    }
+                    return m;
+                });
+                localStorage.setItem('members_obj_' + chatId, JSON.stringify(members));
+            }
+            return members;
+        }
+
+        window.loadMessages = function(chatId) {
+            const container = document.getElementById('messages-container');
+            
+            if (chatId === 'video_chat_room') {
+                container.innerHTML = `
+                    <div class="text-center p-8 text-gray-400 dark:text-gray-500 mt-8 space-y-4">
+                        <div class="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center text-3xl mx-auto shadow">
+                            <i class="fa-solid fa-video"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-white">Video Chat Xonasi</h3>
+                        <p class="text-xs max-w-sm mx-auto">Kamerangizni yoqishingiz yoki ekraningizni ko'rsatishingiz mumkin.</p>
+                        <button onclick="openVideoChatModal()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow transition">
+                            Video Chatni Boshlash
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            const savedMsgs = JSON.parse(localStorage.getItem('msgs_' + chatId)) || [
+                { id: 'm1', sender: window.currentUser.name, text: chatId === 'saved_messages_room' ? 'Bu sizning saqlangan xabarlaringiz.' : 'Xush kelibsiz!', time: 'Hozir', views: 5 }
+            ];
+
+            const members = getChatMembers(chatId);
+
+            container.innerHTML = savedMsgs.map(m => {
+                const isOut = m.sender === window.currentUser.name;
+                const senderObj = members.find(mem => mem.name === m.sender);
+                const isPremium = senderObj ? senderObj.isPremium : false;
+                const isAdmin = senderObj ? senderObj.isAdmin : false;
+                const senderAvatar = senderObj ? senderObj.avatar : '';
+
+                return `
+                    <div class="flex flex-col ${isOut ? 'items-end' : 'items-start'}">
+                        <div oncontextmenu="openContextMenu(event, '${m.id}', ${isOut})" class="max-w-[85%] md:max-w-[75%] px-3.5 py-2 rounded-2xl text-sm shadow-sm relative cursor-pointer ${isOut ? 'bg-telegram-bubbleOut dark:bg-telegram-bubbleOutDark rounded-br-none' : 'bg-telegram-bubbleIn dark:bg-telegram-bubbleInDark rounded-bl-none'}">
+                            ${!isOut ? `
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <div class="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[9px] bg-cover bg-center shrink-0" style="${senderAvatar ? `background-image: url('${senderAvatar}')` : ''}">
+                                        ${!senderAvatar ? m.sender.charAt(0).toUpperCase() : ''}
+                                    </div>
+                                    <span class="text-xs font-bold text-telegram-blue flex items-center space-x-1">
+                                        <span>${m.sender}</span>${isAdmin ? '<span class="bg-telegram-blue/10 text-telegram-blue text-[9px] px-1 rounded">Admin</span>' : ''}
+                                        ${isPremium ? '<span class="text-amber-500" title="Telegram Premium">⭐</span>' : ''}
+                                    </span>
+                                </div>
+                            ` : ''}
+                            
+                            ${m.replyTo ? `
+                                <div class="border-l-2 border-telegram-blue pl-2 mb-1 bg-black/5 dark:bg-white/5 py-0.5 rounded text-xs">
+                                    <span class="font-bold text-telegram-blue block">${m.replyTo.sender}</span>
+                                    <span class="truncate block text-gray-500 dark:text-gray-400">${m.replyTo.text}</span>
+                                </div>
+                            ` : ''}
+
+                            <p class="break-words">${m.text}</p>
+                            
+                            ${m.reactions && m.reactions.length > 0 ? `
+                                <div class="flex flex-wrap gap-1 mt-1.5">
+                                    ${m.reactions.map(r => `<span class="bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded-full text-xs">${r}</span>`).join('')}
+                                </div>
+                            ` : ''}
+
+                            <div class="flex items-center justify-end space-x-1 mt-1">
+                                ${m.edited ? '<span class="text-[9px] text-gray-400 italic">tahrirlangan</span>' : ''}
+                                <span class="text-[10px] text-gray-400">${m.time}</span>
+                                <span class="text-[10px] text-gray-400 flex items-center space-x-0.5"><i class="fa-solid fa-eye text-[9px]"></i><span>${m.views || 1}</span></span>
+                                ${isOut ? '<i class="fa-solid fa-check-double text-[10px] text-telegram-blue"></i>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
+        };
+
+        window.openContextMenu = function(e, msgId, isOut) {
+            e.preventDefault();
+            window.selectedCtxMsgId = msgId;
+            const menu = document.getElementById('message-context-menu');
+            menu.style.top = `${Math.min(e.clientY, window.innerHeight - 200)}px`;
+            menu.style.left = `${Math.min(e.clientX, window.innerWidth - 220)}px`;
+            menu.classList.remove('hidden');
+
+            const editOption = document.getElementById('ctx-edit-option');
+            if (isOut) editOption.style.display = 'flex';
+            else editOption.style.display = 'none';
+        };
+
+        window.hideContextMenu = function() {
+            document.getElementById('message-context-menu').classList.add('hidden');
+        };
+
+        window.ctxReply = function() {
+            const savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            const msg = savedMsgs.find(m => m.id === window.selectedCtxMsgId);
+            if (msg) prepareReply(msg.id, msg.sender, msg.text);
+        };
+
+        window.ctxEdit = function() {
+            const savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            const msg = savedMsgs.find(m => m.id === window.selectedCtxMsgId);
+            if (msg) prepareEdit(msg.id, msg.text);
+        };
+
+        window.ctxReaction = function() {
+            const emojis = prompt("Emotsiyani kiriting (masalan: 👍, ❤️, 🔥):", "👍");
+            if (!emojis) return;
+            let savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            savedMsgs = savedMsgs.map(m => {
+                if (m.id === window.selectedCtxMsgId) {
+                    if (!m.reactions) m.reactions = [];
+                    m.reactions.push(emojis);
+                }
+                return m;
+            });
+            localStorage.setItem('msgs_' + window.activeChatId, JSON.stringify(savedMsgs));
+            loadMessages(window.activeChatId);
+        };
+
+        window.ctxViews = function() {
+            let savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            const msg = savedMsgs.find(m => m.id === window.selectedCtxMsgId);
+            if (msg) alert(`Ko'rishlar soni: ${msg.views || 1}`);
+        };
+
+        window.ctxDelete = function() { deleteMessage(window.selectedCtxMsgId); };
+
+        window.prepareReply = function(id, sender, text) {
+            window.replyingTo = { id, sender, text };
+            window.editingMsgId = null;
+            document.getElementById('action-banner').classList.remove('hidden');
+            document.getElementById('action-banner-icon').className = 'fa-solid fa-reply text-telegram-blue';
+            document.getElementById('action-banner-title').innerText = `${sender} ga javob`;
+            document.getElementById('action-banner-text').innerText = text;
+            document.getElementById('message-input').focus();
+        };
+
+        window.prepareEdit = function(id, text) {
+            window.editingMsgId = id;
+            window.replyingTo = null;
+            document.getElementById('action-banner').classList.remove('hidden');
+            document.getElementById('action-banner-icon').className = 'fa-solid fa-pen text-yellow-500';
+            document.getElementById('action-banner-title').innerText = 'Tahrirlash';
+            document.getElementById('action-banner-text').innerText = text;
+            const input = document.getElementById('message-input');
+            input.value = text;
+            input.focus();
+        };
+
+        window.cancelAction = function() {
+            window.replyingTo = null;
+            window.editingMsgId = null;
+            document.getElementById('action-banner').classList.add('hidden');
+            document.getElementById('message-input').value = '';
+        };
+
+        // 3. Socket orqali serverga xabar yuborish
+        window.sendMessage = function() {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text || !window.activeChatId) return;
+
+            let savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+
+            if (window.editingMsgId) {
+                savedMsgs = savedMsgs.map(m => {
+                    if (m.id === window.editingMsgId) {
+                        m.text = text;
+                        m.edited = true;
+                    }
+                    return m;
+                });
+                localStorage.setItem('msgs_' + window.activeChatId, JSON.stringify(savedMsgs));
+            } else {
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const newMsg = {
+                    id: 'msg_' + Date.now(),
+                    chatId: window.activeChatId,
+                    sender: window.currentUser.name,
+                    text,
+                    time,
+                    views: Math.floor(Math.random() * 5) + 1,
+                    replyTo: window.replyingTo ? { sender: window.replyingTo.sender, text: window.replyingTo.text } : null
+                };
+                
+                savedMsgs.push(newMsg);
+                localStorage.setItem('msgs_' + window.activeChatId, JSON.stringify(savedMsgs));
+
+                // Serverga xabar yuborish
+                socket.emit('send_message', newMsg);
+            }
+
+            cancelAction();
+            loadMessages(window.activeChatId);
+        };
+
+        window.sendAttachment = function() {
+            const fileName = prompt("Fayl nomini kiriting:");
+            if (!fileName) return;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const newMsg = { 
+                id: 'msg_' + Date.now(), 
+                chatId: window.activeChatId,
+                sender: window.currentUser.name, 
+                text: `<i class="fa-solid fa-file mr-1"></i> ${fileName}`, 
+                time, 
+                views: 1 
+            };
+            let savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            savedMsgs.push(newMsg);
+            localStorage.setItem('msgs_' + window.activeChatId, JSON.stringify(savedMsgs));
+            
+            // Serverga fayl xabarini uzatish
+            socket.emit('send_message', newMsg);
+            
+            loadMessages(window.activeChatId);
+        };
+
+        window.deleteMessage = function(msgId) {
+            let savedMsgs = JSON.parse(localStorage.getItem('msgs_' + window.activeChatId)) || [];
+            savedMsgs = savedMsgs.filter(m => m.id !== msgId);
+            localStorage.setItem('msgs_' + window.activeChatId, JSON.stringify(savedMsgs));
+            loadMessages(window.activeChatId);
+        };
+
+        window.handleKeyPress = function(e) { if (e.key === 'Enter') sendMessage(); };
+
+        // Channel Info & Members
+        window.openChannelInfo = function() {
+            document.getElementById('info-edit-title').value = window.activeChatTitle;
+            document.getElementById('info-edit-avatar').value = window.activeChatAvatarUrl || '';
+            
+            const avatarBox = document.getElementById('info-avatar-box');
+            if (window.activeChatAvatarUrl) {
+                avatarBox.style.backgroundImage = `url('${window.activeChatAvatarUrl}')`;
+                avatarBox.innerHTML = '';
+            } else {
+                avatarBox.style.backgroundImage = 'none';
+                avatarBox.innerHTML = `<i class="fa-solid ${window.activeChatType === 'channel' ? 'fa-bullhorn' : 'fa-user'}"></i>`;
+            }
+
+            updateMembersUI();
+            document.getElementById('channel-info-modal').classList.remove('hidden');
+        };
+        window.closeChannelInfo = function() { document.getElementById('channel-info-modal').classList.add('hidden'); };
+
+        window.renameChatOrChannel = function() {
+            const newTitle = document.getElementById('info-edit-title').value.trim();
+            if (!newTitle) return;
+
+            window.activeChatTitle = newTitle;
+            document.getElementById('active-chat-name').innerText = newTitle;
+
+            let myChats = JSON.parse(localStorage.getItem('my_chats_' + window.currentUser.id)) || [];
+            myChats = myChats.map(c => {
+                if (c.id === window.activeChatId) c.title = newTitle;
+                return c;
+            });
+            localStorage.setItem('my_chats_' + window.currentUser.id, JSON.stringify(myChats));
+            loadChats();
+        };
+
+        window.updateChatAvatar = function() {
+            const newAvatar = document.getElementById('info-edit-avatar').value.trim();
+            window.activeChatAvatarUrl = newAvatar;
+
+            const avatarBox = document.getElementById('active-chat-avatar');
+            const infoAvatarBox = document.getElementById('info-avatar-box');
+
+            if (newAvatar) {
+                avatarBox.style.backgroundImage = `url('${newAvatar}')`;
+                avatarBox.innerHTML = '';
+                infoAvatarBox.style.backgroundImage = `url('${newAvatar}')`;
+                infoAvatarBox.innerHTML = '';
+            } else {
+                avatarBox.style.backgroundImage = 'none';
+                avatarBox.innerHTML = `<i class="fa-solid ${window.activeChatType === 'channel' ? 'fa-bullhorn' : 'fa-user'}"></i>`;
+                infoAvatarBox.style.backgroundImage = 'none';
+                infoAvatarBox.innerHTML = `<i class="fa-solid ${window.activeChatType === 'channel' ? 'fa-bullhorn' : 'fa-user'}"></i>`;
+            }
+
+            let myChats = JSON.parse(localStorage.getItem('my_chats_' + window.currentUser.id)) || [];
+            myChats = myChats.map(c => {
+                if (c.id === window.activeChatId) c.avatar = newAvatar;
+                return c;
+            });
+            localStorage.setItem('my_chats_' + window.currentUser.id, JSON.stringify(myChats));
+            loadChats();
+        };
+
+        window.updateMembersUI = function() {
+            const members = getChatMembers(window.activeChatId);
+            document.getElementById('info-member-count').innerText = `${members.length} ta ishtirokchi`;
+            
+            const listContainer = document.getElementById('members-list');
+            listContainer.innerHTML = members.map((mem) => `
+                <div class="flex items-center justify-between py-1.5 px-3 rounded-xl bg-white dark:bg-telegram-darkBlue shadow-sm">
+                    <div class="flex items-center space-x-2">
+                        <span class="font-medium text-sm">${mem.name}</span>
+                        <span class="text-xs text-gray-400">${mem.username || ''}</span>
+                        ${mem.isPremium ? '<span class="text-amber-500 text-xs">⭐</span>' : ''}
+                        ${mem.isAdmin ? '<span class="bg-telegram-blue/10 text-telegram-blue text-[10px] px-1 rounded font-semibold">Admin</span>' : ''}
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button onclick="togglePremium('${mem.name}')" class="px-2 py-0.5 bg-amber-500/10 text-xs rounded text-amber-500 font-medium">⭐</button>
+                        ${!mem.isAdmin ? `<button onclick="removeMember('${mem.name}')" class="text-red-500 text-xs px-1"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        window.addMember = function() {
+            const input = document.getElementById('new-member-name');
+            const memName = input.value.trim();
+            if(!memName) return;
+
+            let members = getChatMembers(window.activeChatId);
+            if(!members.some(m => m.name === memName)) {
+                members.push({ name: memName, username: '@' + memName.toLowerCase().replace(/\s+/g, '_'), avatar: '', isAdmin: false, isPremium: false });
+                localStorage.setItem('members_obj_' + window.activeChatId, JSON.stringify(members));
+                input.value = '';
+                updateMembersUI();
+                document.getElementById('active-chat-status').innerText = `${members.length} ta ishtirokchi`;
+            }
+        };
+
+        window.togglePremium = function(memName) {
+            let members = getChatMembers(window.activeChatId);
+            members = members.map(m => {
+                if(m.name === memName) m.isPremium = !m.isPremium;
+                return m;
+            });
+            localStorage.setItem('members_obj_' + window.activeChatId, JSON.stringify(members));
+            updateMembersUI();
+            loadMessages(window.activeChatId);
+        };
+
+        window.removeMember = function(memName) {
+            let members = getChatMembers(window.activeChatId);
+            members = members.filter(m => m.name !== memName);
+            localStorage.setItem('members_obj_' + window.activeChatId, JSON.stringify(members));
+            updateMembersUI();
+            document.getElementById('active-chat-status').innerText = `${members.length} ta ishtirokchi`;
+        };
+
+        window.deleteChatOrChannel = function() {
+            if(confirm("Chatni o'chirmoqchimisiz?")) {
+                let myChats = JSON.parse(localStorage.getItem('my_chats_' + window.currentUser.id)) || [];
+                myChats = myChats.filter(c => c.id !== window.activeChatId);
+                localStorage.setItem('my_chats_' + window.currentUser.id, JSON.stringify(myChats));
+                
+                localStorage.removeItem('msgs_' + window.activeChatId);
+                localStorage.removeItem('members_obj_' + window.activeChatId);
+
+                closeChannelInfo();
+                closeChatMobile();
+                loadChats();
+            }
+        };
+
+        window.openWallpaperModal = function() { document.getElementById('wallpaper-modal').classList.remove('hidden'); };
+        window.closeWallpaperModal = function() { document.getElementById('wallpaper-modal').classList.add('hidden'); };
+        window.setWallpaper = function(url) {
+            window.currentUser.wallpaper = url;
+            localStorage.setItem('tg_user', JSON.stringify(window.currentUser));
+            const container = document.getElementById('messages-container');
+            container.style.backgroundImage = url === 'default' ? 'none' : `url('${url}')`;
+            closeWallpaperModal();
+        };
+
+        window.toggleEmojiPicker = function() { document.getElementById('emoji-picker').classList.toggle('hidden'); };
+        window.addEmoji = function(emoji) {
+            const input = document.getElementById('message-input');
+            input.value += emoji;
+            document.getElementById('emoji-picker').classList.add('hidden');
+            input.focus();
+        };
+
+        // Mobil telefonda orqaga qaytish tugmasi uchun
+        window.closeChatMobile = function() {
+            document.getElementById('chat-area').classList.add('hidden');
+        };
+        window.handleSearch = function(query) { loadChats(query); };
+    </script>
+</body>
+</html>
